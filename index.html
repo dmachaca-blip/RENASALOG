@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2335,16 +2336,26 @@ function parsearPlan(wb) {
 
   // Leer meses fila 1 (cols B-M = índices 1-12)
   const meses = [];
+  const MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   for (let j = 1; j <= 12; j++) {
     const v = rows[0]?.[j];
     if (v) {
       try {
-        const d = new Date(v);
-        if (!isNaN(d)) {
-          const mon = d.toLocaleDateString('en-US',{month:'short'});
+        // SheetJS puede dar fecha como número serial o string
+        let d;
+        if (typeof v === 'number') {
+          // Número serial de Excel → fecha
+          d = new Date(Math.round((v - 25569) * 86400 * 1000));
+        } else {
+          d = new Date(v);
+        }
+        if (!isNaN(d.getTime())) {
+          const mon = MESES_ES[d.getMonth()];
           const yr  = String(d.getFullYear()).slice(2);
           meses.push(`${mon}-${yr}`);
-        } else meses.push(String(v).trim());
+        } else {
+          meses.push(String(v).trim());
+        }
       } catch(e) { meses.push(String(v).trim()); }
     }
   }
@@ -2890,13 +2901,15 @@ function buildDashboardCompras() {
       <td style="padding:10px 12px;text-align:right;color:var(--blue)">${ocPend>0?'+'+fn(ocPend):'\u2014'}</td>
       <td style="padding:10px 12px">
         ${esMesActual ? `
-        <div style="font-size:12px;color:var(--text2)">${fn(consumoReal)} <span style="color:var(--text3);font-size:11px">/ ${fn(conProy)}</span></div>
-        <div style="margin-top:3px;background:var(--surface3);border-radius:4px;height:4px">
-          <div style="width:${avancePct}%;background:var(--renasa-yellow);height:4px;border-radius:4px"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text2)">${fn(consumoReal)} <span style="color:var(--text3);font-size:11px;font-weight:400">/ ${fn(conProy)} ${p.unidad}</span></div>
+        <div style="margin-top:3px;background:var(--surface3);border-radius:4px;height:5px">
+          <div style="width:${avancePct}%;background:var(--renasa-yellow);height:5px;border-radius:4px"></div>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">${avancePct}% del mes</div>
-        ` : `<div style="font-size:12px;color:var(--text2)">${fn(conMesSel)} <span style="font-size:10px;color:var(--text3)">${p.unidad}</span></div>
-        <div style="font-size:10px;color:var(--text3)">proyectado ${mesSel}</div>`}
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${avancePct}% consumido del mes</div>
+        ` : `
+        <div style="font-size:12px;font-weight:600;color:var(--text2)">${fn(conMesSel)} <span style="font-size:10px;color:var(--text3);font-weight:400">${p.unidad}</span></div>
+        <div style="font-size:10px;color:var(--text3)">proyectado ${mesSel}</div>
+        `}
       </td>
       <td style="padding:10px 12px">
         <div style="display:flex;align-items:center;gap:6px">
