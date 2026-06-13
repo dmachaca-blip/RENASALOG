@@ -2279,9 +2279,10 @@ async function cargarStockDesdeFlow() {
 
     // Detectar mes actual del plan (primer mes de la proyección)
     const primerCod = Object.keys(plan)[0];
-    if (primerCod && plan[primerCod]) {
-      STOCK_MES_PLAN = Object.keys(plan[primerCod])[0];
+    if (primerCod && plan[primerCod]?.meses?.length) {
+      STOCK_MES_PLAN = plan[primerCod].meses[0];
     }
+    dashMesSel = null; // resetear selección de mes al recargar
 
     STOCK_KARDEX  = kardex;
     STOCK_OCS     = ocs;
