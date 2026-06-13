@@ -2754,37 +2754,42 @@ function dashActualizar(cod, val) {
   const stockActual = stockGetSFActual(cod);
   const cantSim     = dashSimCant[cod] || 0;
 
-  // Proyectar stock desde mes actual hasta mes seleccionado (sin sumar ingresos del plan)
-  let sfProyectado = stockActual + cantSim;
-  const kardexMes  = STOCK_KARDEX[cod]?.[STOCK_MES_PLAN];
-  const consumoReal = kardexMes?.sal || 0;
+  // Proyectar stock
+  const kardexMes     = STOCK_KARDEX[cod]?.[STOCK_MES_PLAN];
+  const consumoReal   = kardexMes?.sal || 0;
   const conProyActual = plan.consumo[STOCK_MES_PLAN] || 0;
   const conRestante   = Math.max(0, conProyActual - consumoReal);
-  sfProyectado = Math.max(0, sfProyectado - conRestante);
+  const stockDisp     = stockActual + cantSim;
 
-  for (let m = idxBase + 1; m < idxSel; m++) {
-    sfProyectado = Math.max(0, sfProyectado - (plan.consumo[mesesPlan[m]] || 0));
+  let deficit, sfProyectado;
+  if (mesBase === STOCK_MES_PLAN) {
+    // Mes actual: déficit contra lo que resta por consumir
+    deficit      = Math.max(0, conRestante - stockDisp);
+    sfProyectado = Math.max(0, stockDisp - conRestante);
+  } else {
+    sfProyectado = Math.max(0, stockDisp - conRestante);
+    for (let m = idxBase + 1; m < idxSel; m++) {
+      sfProyectado = Math.max(0, sfProyectado - (plan.consumo[mesesPlan[m]] || 0));
+    }
+    const conMesSel = plan.consumo[mesBase] || 0;
+    deficit = Math.max(0, conMesSel - sfProyectado);
   }
 
-  const conMesSel = plan.consumo[mesBase] || 0;
-  const deficit   = Math.max(0, conMesSel - sfProyectado);
-
-  // Si mes actual cubierto → calcular déficit del siguiente mes
+  // Si mes actual cubierto → mostrar déficit del siguiente mes
   let deficitLabel = '';
   let deficitVal = deficit;
-  if (deficit === 0) {
-    // SF al cierre del mes actual
-    const sfCierre = Math.max(0, sfProyectado - conMesSel);
+  if (deficit === 0 && mesBase === STOCK_MES_PLAN) {
     const mesSig = mesesPlan[idxBase + 1];
     const conSig = mesSig ? (plan.consumo[mesSig] || 0) : 0;
-    if (mesSig && conSig > sfCierre) {
+    if (mesSig && conSig > sfProyectado) {
       deficitLabel = mesSig;
       deficitVal = conSig - sfCierre;
     }
   } else {
     deficitLabel = mesBase;
   }
-  const cobPct    = conMesSel > 0 ? Math.min(100, Math.round((sfProyectado / conMesSel) * 100)) : 100;
+  const conParaCob = mesBase === STOCK_MES_PLAN ? conRestante : (plan.consumo[mesBase] || 0);
+  const cobPct    = conParaCob > 0 ? Math.min(100, Math.round((mesBase===STOCK_MES_PLAN?stockDisp:sfProyectado) / conParaCob * 100)) : 100;
   const barCol    = cobPct >= 100 ? 'var(--green)' : cobPct >= 50 ? 'var(--orange)' : 'var(--red)';
 
   const bar    = document.getElementById('dashBar_'    + cod);
@@ -2863,19 +2868,32 @@ function buildDashboardCompras() {
     const kardexMes   = STOCK_KARDEX[cod]?.[mesBase];
     const consumoReal = kardexMes?.sal || 0;
     const conProy     = plan.consumo[mesBase] || 0;
-    const sfProy      = calcSFproyectado(cod, cantSim);
-    const conMesSel   = plan.consumo[mesSel] || 0;
-    const deficit     = Math.max(0, conMesSel - sfProy);
-    const cobPct      = conMesSel > 0 ? Math.min(100, Math.round((sfProy / conMesSel) * 100)) : 100;
+    const conRestante = Math.max(0, conProy - consumoReal);
+    const stockDisp   = stockGetSFActual(cod) + cantSim;
 
-    // Si mes seleccionado cubierto y es el mes actual → mostrar déficit del siguiente mes
+    // Para mes actual: déficit = lo que falta para cubrir lo que resta del mes
+    // Para meses futuros: déficit contra sfProy proyectado
+    let deficit, sfProy, conMesSel;
+    if (mesSel === mesBase) {
+      // Mes actual en curso
+      deficit    = Math.max(0, conRestante - stockDisp);
+      sfProy     = Math.max(0, stockDisp - conRestante);
+      conMesSel  = conRestante; // para la barra de cobertura
+    } else {
+      // Mes futuro — proyectar stock
+      sfProy    = calcSFproyectado(cod, cantSim);
+      conMesSel = plan.consumo[mesSel] || 0;
+      deficit   = Math.max(0, conMesSel - sfProy);
+    }
+
+    const cobPct = conMesSel > 0 ? Math.min(100, Math.round((deficit===0?stockDisp:sfProy) / conMesSel * 100)) : 100;
+
+    // Si mes actual cubierto → mostrar déficit del siguiente mes
     let deficitSig = 0, mesSig = null;
     if (deficit === 0 && mesSel === mesBase) {
-      const sfCierre = Math.max(0, sfProy - conMesSel);
-      const idxSig = mesesPlan.indexOf(mesBase) + 1;
-      mesSig = mesesPlan[idxSig] || null;
+      mesSig = mesesPlan[idxBase + 1] || null;
       const conSig = mesSig ? (plan.consumo[mesSig] || 0) : 0;
-      if (mesSig && conSig > sfCierre) deficitSig = conSig - sfCierre;
+      if (mesSig && conSig > sfProy) deficitSig = conSig - sfProy;
     }
 
     let urgencia = 'ok';
